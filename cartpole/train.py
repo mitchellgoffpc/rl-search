@@ -11,7 +11,7 @@ HIDDEN_SIZE = 64
 OUTPUT_SIZE = 2
 LEARNING_RATE = 0.001
 BATCH_SIZE = 32
-NUM_EPOCHS = 100
+NUM_EPOCHS = 10
 
 
 class CartPoleDataset(Dataset):
@@ -80,7 +80,7 @@ def train():
         accuracy = correct_predictions / total_samples
         print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
 
-        torch.save(model.state_dict(), Path(__file__).parent / "model.ckpt")
+        torch.save(model.state_dict(), Path(__file__).parent / "model-3.ckpt")
 
 if __name__ == '__main__':
     train()
