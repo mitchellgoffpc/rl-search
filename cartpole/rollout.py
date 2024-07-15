@@ -37,7 +37,9 @@ def search_best_action(env):
     avg_steps_0 = np.mean(action_results[0])
     avg_steps_1 = np.mean(action_results[1])
 
-    return 0 if avg_steps_0 > avg_steps_1 else 1
+
+
+    return 0 if avg_steps_0 > avg_steps_1 else 1, action_results
 
 def play_cartpole(i):
     env = gym.make('CartPole-v1', render_mode='human' if RENDER else None)
@@ -49,17 +51,33 @@ def play_cartpole(i):
     st = time.time()
     env.step(env.action_space.sample())  # state is a numpy array on the first iter, after the first step it becomes a tuple
 
+    episode_data = []
+
     while not done and not trunc:
         if np.random.uniform() < EPSILON:
             action = env.action_space.sample()
+            tree_decision = None
         else:
-            action = search_best_action(env)
+            action, tree_decision = search_best_action(env)
         observation, reward, done, trunc, _ = env.step(action)
         total_reward += reward
         steps += 1
 
+        episode_data.append({
+            'step': steps,
+            'action': action,
+            'tree_decision': tree_decision,
+            'observation': observation,
+            'reward': reward
+        })
+
     env.close()
     et = time.time()
+
+    # Save episode data
+    os.makedirs('episodes', exist_ok=True)
+    np.savez(f'episodes/episode_{i:02d}.npz', episode_data=episode_data)
+
     return steps, total_reward, et - st
 
 def run_multiple_episodes(num_episodes=100):
