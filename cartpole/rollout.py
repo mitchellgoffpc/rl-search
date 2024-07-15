@@ -4,6 +4,7 @@ import numpy as np
 import gymnasium as gym
 import multiprocessing as mp
 from tqdm import tqdm
+from pathlib import Path
 
 EPSILON = 0.5
 NUM_SIMULATIONS = 50
@@ -54,29 +55,22 @@ def play_cartpole(i):
     episode_data = []
 
     while not done and not trunc:
-        if np.random.uniform() < EPSILON:
-            action = env.action_space.sample()
-            tree_decision = None
-        else:
-            action, tree_decision = search_best_action(env)
+        tree_decision, _ = search_best_action(env)
+        action = env.action_space.sample() if np.random.uniform() < EPSILON else tree_decision
         observation, reward, done, trunc, _ = env.step(action)
         total_reward += reward
         steps += 1
 
-        episode_data.append({
-            'step': steps,
-            'action': action,
-            'tree_decision': tree_decision,
-            'observation': observation,
-            'reward': reward
-        })
+        episode_data.append({'step': steps, 'action': action, 'tree_decision': tree_decision, 'observation': observation})
 
     env.close()
     et = time.time()
+    observations, actions, tree_decisions = zip(*[(data['observation'], data['action'], data['tree_decision']) for data in episode_data])
 
     # Save episode data
-    os.makedirs('episodes', exist_ok=True)
-    np.savez(f'episodes/episode_{i:02d}.npz', episode_data=episode_data)
+    episodes_dir = Path(__file__).parent / 'episodes'
+    episodes_dir.mkdir(parents=True, exist_ok=True)
+    np.savez(episodes_dir / f'episode_{i:02d}.npz', observations=observations, actions=actions, tree_decisions=tree_decisions)
 
     return steps, total_reward, et - st
 
