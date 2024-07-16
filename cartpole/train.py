@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 from tqdm import tqdm
+import argparse
 
 INPUT_SIZE = 4
 HIDDEN_SIZE = 64
@@ -23,6 +24,7 @@ class CartPoleDataset(Dataset):
             tree_decisions = episode_data['tree_decisions']
             for obs, decision in zip(observations, tree_decisions):
                 self.episodes.append((obs, decision))
+        print(f"Initialized CartPoleDataset with {len(self)} samples")
 
     def __len__(self):
         return len(self.episodes)
@@ -44,7 +46,7 @@ class MLP(nn.Module):
         return x
 
 
-def train():
+def train(episode_dir, checkpoint_path):
     device = torch.device("cpu")
     model = MLP(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE).to(device)
     criterion = nn.CrossEntropyLoss()
@@ -62,7 +64,7 @@ def train():
 
         for observations, tree_decisions in tqdm(dataloader, leave=False):
             observations = observations.to(device)
-            tree_decisions = tree_decisions.squeeze().to(device)
+            tree_decisions = tree_decisions.squeeze(-1).to(device)
             outputs = model(observations)
             loss = criterion(outputs, tree_decisions)
 
@@ -80,7 +82,15 @@ def train():
         accuracy = correct_predictions / total_samples
         print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
 
-        torch.save(model.state_dict(), Path(__file__).parent / "model-3.ckpt")
+        torch.save(model.state_dict(), checkpoint_path)
+
 
 if __name__ == '__main__':
-    train()
+    parser = argparse.ArgumentParser(description="Train CartPole model")
+    parser.add_argument('-i', '--input', type=str, default="episodes", help="Directory containing episode files")
+    parser.add_argument('-o', '--output', type=str, default="model.ckpt", help="Path to save the model checkpoint")
+    args = parser.parse_args()
+
+    episode_dir = Path(args.input)
+    checkpoint_path = Path(args.output)
+    train(episode_dir, checkpoint_path)

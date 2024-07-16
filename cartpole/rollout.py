@@ -9,10 +9,6 @@ from tqdm import tqdm
 from pathlib import Path
 from cartpole.train import MLP
 
-EPSILON = 0.5
-NUM_SIMULATIONS = 50
-NUM_EPISODES = 100
-
 def run_simulation(env, action):
     done = False
     trunc = False
@@ -27,23 +23,20 @@ def run_simulation(env, action):
 
     return steps
 
-def search_best_action(env):
+def search_best_action(env, num_simulations):
     save_state_env = gym.make('CartPole-v1')
     action_results = {0: [], 1: []}
 
     for action in [0, 1]:
-        for _ in range(NUM_SIMULATIONS):
+        for _ in range(num_simulations):
             save_state_env.reset()
             save_state_env.unwrapped.state = env.unwrapped.state
             steps = run_simulation(save_state_env, action)
             action_results[action].append(steps)
 
-    avg_steps_0 = np.mean(action_results[0])
-    avg_steps_1 = np.mean(action_results[1])
+    return 0 if np.mean(action_results[0]) > np.mean(action_results[1]) else 1, action_results
 
-    return 0 if avg_steps_0 > avg_steps_1 else 1, action_results
-
-def play_cartpole(model_path, render=False, save=False):
+def play_cartpole(model_path, num_simulations, epsilon, render=False, save=False):
     model = None
     if model_path:
         model = MLP(input_size=4, output_size=2, hidden_size=64).eval()
@@ -63,13 +56,13 @@ def play_cartpole(model_path, render=False, save=False):
     while not done and not trunc:
         tree_decision = None
         if save or not model:  # only compute the tree decision if we have to
-            tree_decision, _ = search_best_action(env)
+            tree_decision, _ = search_best_action(env, num_simulations)
 
-        if np.random.uniform() < EPSILON:
+        if np.random.uniform() < epsilon:
             action = env.action_space.sample()
         elif model:
             with torch.no_grad():
-                # action = model(torch.FloatTensor(observation)).argmax().item()
+                # action = torch.argmax(model(torch.FloatTensor(observation))).item()
                 action_probs = torch.softmax(model(torch.FloatTensor(observation)), dim=0)
                 action = torch.multinomial(action_probs, 1).item()
         else:
@@ -86,14 +79,13 @@ def play_cartpole(model_path, render=False, save=False):
 
     return steps, observations, actions, tree_decisions, et - st
 
-
 def _play_cartpole(args):
     return play_cartpole(*args)
 
-def run_multiple_episodes(model_path, episode_dir):
+def run_multiple_episodes(model_path, episode_dir, num_episodes, num_simulations, epsilon):
     st = time.time()
     with mp.Pool(processes=mp.cpu_count()) as pool:
-        results = list(tqdm(pool.imap(_play_cartpole, [(model_path, False, True) for i in range(NUM_EPISODES)]), total=NUM_EPISODES))
+        results = list(tqdm(pool.imap(_play_cartpole, [(model_path, num_simulations, epsilon, False, True) for i in range(num_episodes)]), total=num_episodes))
     et = time.time()
 
     if episode_dir is not None:
@@ -101,7 +93,7 @@ def run_multiple_episodes(model_path, episode_dir):
             np.savez(episode_dir / f'episode_{i:02d}.npz', observations=observations, actions=actions, tree_decisions=tree_decisions)
 
     steps, _, _, _, times = zip(*results)
-    print(f"Results after {NUM_EPISODES} episodes:")
+    print(f"Results after {num_episodes} episodes:")
     print(f"Avg Steps: {np.mean(steps):.2f}")
     print(f"Avg Time: {np.mean(times):.2f} seconds")
     print(f"Total time: {et - st:.2f} seconds")
@@ -110,6 +102,9 @@ def run_multiple_episodes(model_path, episode_dir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run CartPole episodes with optional model.')
     parser.add_argument('-m', '--model', type=str, help='Path to the model checkpoint file')
+    parser.add_argument('-n', '--num_episodes', type=int, default=100, help='Number of episodes to run')
+    parser.add_argument('-s', '--num_simulations', type=int, default=50, help='Number of simulations to run')
+    parser.add_argument('-e', '--epsilon', type=float, default=0.0, help='Epsilon value for epsilon-greedy policy')
     parser.add_argument('--render', action='store_true', help='Render the episodes')
     parser.add_argument('--save', action='store_true', help='Save the episodes to disk')
     args = parser.parse_args()
@@ -122,7 +117,7 @@ if __name__ == "__main__":
             f.unlink()
 
     if args.render:
-        steps, _, _ = play_cartpole(args.model, render=True)
+        steps, *_ = play_cartpole(args.model, args.num_simulations, args.epsilon, render=True)
         print(f"Episode finished after {steps} steps.")
     else:
-        run_multiple_episodes(args.model, episode_dir)
+        run_multiple_episodes(args.model, episode_dir, args.num_episodes, args.num_simulations, args.epsilon)
