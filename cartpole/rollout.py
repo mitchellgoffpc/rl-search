@@ -25,16 +25,19 @@ def run_simulation(env, action):
 
 def search_best_action(env, num_simulations):
     save_state_env = gym.make('CartPole-v1')
-    action_results = {0: [], 1: []}
+    actions = list(range(env.action_space.n))
+    action_results = {i: [] for i in actions}
 
-    for action in [0, 1]:
+    for action in actions:
         for _ in range(num_simulations):
             save_state_env.reset()
             save_state_env.unwrapped.state = env.unwrapped.state
             steps = run_simulation(save_state_env, action)
             action_results[action].append(steps)
 
-    return 0 if np.mean(action_results[0]) > np.mean(action_results[1]) else 1, action_results
+    action_results = {k: np.mean(v) for k,v in action_results.items()}
+    best_action = max(action_results, key=action_results.get)
+    return best_action, action_results
 
 def play_cartpole(model_path, num_simulations, epsilon, render=False, save=False):
     model = None
