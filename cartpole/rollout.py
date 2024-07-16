@@ -90,7 +90,7 @@ def run_multiple_episodes(model_path, episode_dir, num_episodes, num_simulations
 
     if episode_dir is not None:
         for i, (_, observations, actions, tree_decisions, _) in enumerate(results):
-            np.savez(episode_dir / f'episode_{i:02d}.npz', observations=observations, actions=actions, tree_decisions=tree_decisions)
+            np.savez(episode_dir / f'episode_{i:03d}.npz', observations=observations, actions=actions, tree_decisions=tree_decisions)
 
     steps, _, _, _, times = zip(*results)
     print(f"Results after {num_episodes} episodes:")
@@ -105,13 +105,13 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--num_episodes', type=int, default=100, help='Number of episodes to run')
     parser.add_argument('-s', '--num_simulations', type=int, default=50, help='Number of simulations to run')
     parser.add_argument('-e', '--epsilon', type=float, default=0.0, help='Epsilon value for epsilon-greedy policy')
+    parser.add_argument('-o', '--output', help='Save the episodes to disk')
     parser.add_argument('--render', action='store_true', help='Render the episodes')
-    parser.add_argument('--save', action='store_true', help='Save the episodes to disk')
     args = parser.parse_args()
 
     episode_dir = None
-    if args.save:
-        episode_dir = Path(__file__).parent / 'episodes'
+    if args.output:
+        episode_dir = Path(args.output)
         episode_dir.mkdir(parents=True, exist_ok=True)
         for f in episode_dir.glob('episode_*.npz'):
             f.unlink()

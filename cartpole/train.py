@@ -16,9 +16,9 @@ NUM_EPOCHS = 10
 
 
 class CartPoleDataset(Dataset):
-    def __init__(self):
+    def __init__(self, episode_dir):
         self.episodes = []
-        for episode_file in (Path(__file__).parent / 'episodes').glob("episode_*.npz"):
+        for episode_file in episode_dir.glob("episode_*.npz"):
             episode_data = np.load(episode_file)
             observations = episode_data['observations']
             tree_decisions = episode_data['tree_decisions']
@@ -52,7 +52,7 @@ def train(episode_dir, checkpoint_path):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    dataset = CartPoleDataset()
+    dataset = CartPoleDataset(episode_dir)
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     # Training loop
