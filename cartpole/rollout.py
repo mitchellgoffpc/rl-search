@@ -7,7 +7,7 @@ import gymnasium as gym
 import multiprocessing as mp
 from tqdm import tqdm
 from pathlib import Path
-from cartpole.train import MLP
+from cartpole.train_policy import MLP
 
 def run_simulation(env, action):
     done = False
@@ -39,7 +39,7 @@ def search_best_action(env, num_simulations):
     best_action = max(action_results, key=action_results.get)
     return best_action, action_results
 
-def play_cartpole(model_path, num_simulations, epsilon, render=False, save=False):
+def run_episode(model_path, num_simulations, epsilon, render=False, save=False):
     model = None
     if model_path:
         model = MLP(input_size=4, output_size=2, hidden_size=64).eval()
@@ -82,13 +82,13 @@ def play_cartpole(model_path, num_simulations, epsilon, render=False, save=False
 
     return steps, observations, actions, tree_decisions, et - st
 
-def _play_cartpole(args):
-    return play_cartpole(*args)
+def _run_episode(args):
+    return run_episode(*args)
 
 def run_multiple_episodes(model_path, episode_dir, num_episodes, num_simulations, epsilon):
     st = time.time()
     with mp.Pool(processes=mp.cpu_count()) as pool:
-        results = list(tqdm(pool.imap(_play_cartpole, [(model_path, num_simulations, epsilon, False, True) for i in range(num_episodes)]), total=num_episodes))
+        results = list(tqdm(pool.imap(_run_episode, [(model_path, num_simulations, epsilon, False, True) for i in range(num_episodes)]), total=num_episodes))
     et = time.time()
 
     if episode_dir is not None:
@@ -120,7 +120,7 @@ if __name__ == "__main__":
             f.unlink()
 
     if args.render:
-        steps, *_ = play_cartpole(args.model, args.num_simulations, args.epsilon, render=True)
+        steps, *_ = run_episode(args.model, args.num_simulations, args.epsilon, render=True)
         print(f"Episode finished after {steps} steps.")
     else:
         run_multiple_episodes(args.model, episode_dir, args.num_episodes, args.num_simulations, args.epsilon)

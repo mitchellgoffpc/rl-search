@@ -46,7 +46,7 @@ class MLP(nn.Module):
         return x
 
 
-def train(episode_dir, checkpoint_path):
+def train_policy(episode_dir, checkpoint_path):
     device = torch.device("cpu")
     model = MLP(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE).to(device)
     criterion = nn.CrossEntropyLoss()
@@ -88,9 +88,9 @@ def train(episode_dir, checkpoint_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train CartPole model")
     parser.add_argument('-i', '--input', type=str, default="episodes", help="Directory containing episode files")
-    parser.add_argument('-o', '--output', type=str, default="model.ckpt", help="Path to save the model checkpoint")
+    parser.add_argument('-o', '--output', type=str, default="policy.ckpt", help="Path to save the model checkpoint")
     args = parser.parse_args()
 
     episode_dir = Path(args.input)
     checkpoint_path = Path(args.output)
-    train(episode_dir, checkpoint_path)
+    train_policy(episode_dir, checkpoint_path)
