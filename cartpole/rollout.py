@@ -7,7 +7,7 @@ import gymnasium as gym
 import multiprocessing as mp
 from tqdm import tqdm
 from pathlib import Path
-from cartpole.train_policy import MLP
+from cartpole.models import MLP
 
 def run_simulation(env, action):
     done = False
