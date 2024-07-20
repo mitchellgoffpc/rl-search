@@ -19,7 +19,8 @@ def main(num_episodes, num_simulations):
         new_policy_path = Path(__file__).parent / f'policy-{i+1:01d}.ckpt'
         train_policy(episodes_dir, new_policy_path)
 
-    print("Running final rollouts with epsilon=0.0")
+    print(f"\n--- Final Iteration ---")
+    print("Running rollouts with epsilon=0.0")
     run_multiple_episodes(new_policy_path, None, num_episodes, num_simulations, 0.0)
 
 
