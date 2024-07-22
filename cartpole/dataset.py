@@ -9,13 +9,14 @@ class CartPoleDataset(Dataset):
             episode_data = np.load(episode_file)
             observations = episode_data['observations']
             tree_decisions = episode_data['tree_decisions']
-            for obs, decision in zip(observations, tree_decisions):
-                self.episodes.append((obs, decision))
+            values = len(observations) - np.arange(len(observations))
+            for obs, decision, value in zip(observations, tree_decisions, values):
+                self.episodes.append((obs, decision, value))
         print(f"Initialized CartPoleDataset with {len(self)} samples")
 
     def __len__(self):
         return len(self.episodes)
 
     def __getitem__(self, idx):
-        observation, tree_decision = self.episodes[idx]
-        return torch.FloatTensor(observation), torch.LongTensor([tree_decision])
+        observation, tree_decision, value = self.episodes[idx]
+        return torch.FloatTensor(observation), torch.LongTensor([tree_decision]), torch.FloatTensor([value])

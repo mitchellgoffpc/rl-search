@@ -9,21 +9,24 @@ from tqdm import tqdm
 from pathlib import Path
 from cartpole.models import MLP
 
-def run_simulation(env, action):
+def run_simulation(env, action, max_depth, value_model):
     done = False
     trunc = False
     total_reward = 0
     steps = 0
 
-    while not done and not trunc:
+    while not done and not trunc and steps < max_depth:
         observation, reward, done, trunc, _ = env.step(action)
+        if value_model:
+            with torch.no_grad():
+                reward = value_model(torch.FloatTensor(observation)).item()
         total_reward += reward
         steps += 1
         action = env.action_space.sample()  # random action for subsequent steps
 
-    return steps
+    return reward if value_model else total_reward  # return the last reward if we're using a value model
 
-def search_best_action(env, num_simulations):
+def search_best_action(env, num_simulations, max_depth, value_model):
     save_state_env = gym.make('CartPole-v1')
     actions = list(range(env.action_space.n))
     action_results = {i: [] for i in actions}
@@ -32,18 +35,23 @@ def search_best_action(env, num_simulations):
         for _ in range(num_simulations):
             save_state_env.reset()
             save_state_env.unwrapped.state = env.unwrapped.state
-            steps = run_simulation(save_state_env, action)
-            action_results[action].append(steps)
+            result = run_simulation(save_state_env, action, max_depth, value_model)
+            action_results[action].append(result)
 
     action_results = {k: np.mean(v) for k,v in action_results.items()}
     best_action = max(action_results, key=action_results.get)
     return best_action, action_results
 
-def run_episode(model_path, num_simulations, epsilon, render=False, save=False):
+def run_episode(policy_path, value_path, num_simulations, max_depth, epsilon, render=False, save=False):
     model = None
-    if model_path:
+    if policy_path:
         model = MLP(input_size=4, output_size=2, hidden_size=64).eval()
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(policy_path))
+
+    value_model = None
+    if value_path:
+        value_model = MLP(input_size=4, output_size=1, hidden_size=64).eval()
+        value_model.load_state_dict(torch.load(value_path))
 
     env = gym.make('CartPole-v1', render_mode='human' if render else None)
     observation, _ = env.reset()
@@ -59,19 +67,21 @@ def run_episode(model_path, num_simulations, epsilon, render=False, save=False):
     while not done and not trunc:
         tree_decision = None
         if save or not model:  # only compute the tree decision if we have to
-            tree_decision, _ = search_best_action(env, num_simulations)
+            tree_decision, _ = search_best_action(env, num_simulations, max_depth, value_model)
 
         if np.random.uniform() < epsilon:
             action = env.action_space.sample()
         elif model:
             with torch.no_grad():
-                # action = torch.argmax(model(torch.FloatTensor(observation))).item()
                 action_probs = torch.softmax(model(torch.FloatTensor(observation)), dim=0)
                 action = torch.multinomial(action_probs, 1).item()
         else:
             action = tree_decision
 
         observation, reward, done, trunc, _ = env.step(action)
+        if value_model:
+            with torch.no_grad():
+                reward = value_model(torch.FloatTensor(observation)).item()
         total_reward += reward
         steps += 1
         episode_data.append({'step': steps, 'observation': observation, 'action': action, 'tree_decision': tree_decision})
@@ -85,10 +95,10 @@ def run_episode(model_path, num_simulations, epsilon, render=False, save=False):
 def _run_episode(args):
     return run_episode(*args)
 
-def run_multiple_episodes(model_path, episode_dir, num_episodes, num_simulations, epsilon):
+def run_multiple_episodes(policy_path, value_path, episode_dir, num_episodes, num_simulations, max_depth, epsilon):
     st = time.time()
     with mp.Pool(processes=mp.cpu_count()) as pool:
-        results = list(tqdm(pool.imap(_run_episode, [(model_path, num_simulations, epsilon, False, True) for i in range(num_episodes)]), total=num_episodes))
+        results = list(tqdm(pool.imap(_run_episode, [(policy_path, value_path, num_simulations, max_depth, epsilon, False, True) for i in range(num_episodes)]), total=num_episodes))
     et = time.time()
 
     if episode_dir is not None:
@@ -104,10 +114,12 @@ def run_multiple_episodes(model_path, episode_dir, num_episodes, num_simulations
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run CartPole episodes with optional model.')
-    parser.add_argument('-m', '--model', type=str, help='Path to the model checkpoint file')
+    parser.add_argument('-p', '--policy', type=str, help='Path to the policy model checkpoint')
+    parser.add_argument('-v', '--value', type=str, help='Path to the value model checkpoint')
     parser.add_argument('-n', '--num_episodes', type=int, default=100, help='Number of episodes to run')
     parser.add_argument('-s', '--num_simulations', type=int, default=50, help='Number of simulations to run')
     parser.add_argument('-e', '--epsilon', type=float, default=0.0, help='Epsilon value for epsilon-greedy policy')
+    parser.add_argument('-d', '--depth', type=int, default=float('inf'), help='Maximum search depth')
     parser.add_argument('-o', '--output', help='Save the episodes to disk')
     parser.add_argument('--render', action='store_true', help='Render the episodes')
     args = parser.parse_args()
@@ -120,7 +132,7 @@ if __name__ == "__main__":
             f.unlink()
 
     if args.render:
-        steps, *_ = run_episode(args.model, args.num_simulations, args.epsilon, render=True)
+        steps, *_ = run_episode(args.policy, args.value, args.num_simulations, args.depth, args.epsilon, render=True)
         print(f"Episode finished after {steps} steps.")
     else:
-        run_multiple_episodes(args.model, episode_dir, args.num_episodes, args.num_simulations, args.epsilon)
+        run_multiple_episodes(args.policy, args.value, episode_dir, args.num_episodes, args.num_simulations, args.depth, args.epsilon)

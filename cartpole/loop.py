@@ -13,7 +13,7 @@ def main(num_episodes, num_simulations):
         episodes_dir.mkdir(exist_ok=True)
 
         print(f"Running rollouts with epsilon={epsilon}")
-        run_multiple_episodes(policy_path, episodes_dir, num_episodes if i > 0 else 1000, num_simulations, epsilon)
+        run_multiple_episodes(policy_path, None, episodes_dir, num_episodes if i > 0 else 1000, num_simulations, float('inf'), epsilon)
 
         print("\nTraining policy model")
         new_policy_path = Path(__file__).parent / f'policy-{i+1:01d}.ckpt'
@@ -21,7 +21,7 @@ def main(num_episodes, num_simulations):
 
     print(f"\n--- Final Iteration ---")
     print("Running rollouts with epsilon=0.0")
-    run_multiple_episodes(new_policy_path, None, num_episodes, num_simulations, 0.0)
+    run_multiple_episodes(new_policy_path, None, None, num_episodes, num_simulations, float('inf'), 0.0)
 
 
 if __name__ == "__main__":
